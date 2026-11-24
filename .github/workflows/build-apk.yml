@@ -1,5 +1,6 @@
-# Builds the arm64 APK of this branch on a GitHub runner (the machine has no
-# Android SDK, and a release APK carries the whole runtime bundle).
+# Builds the arm64 APK of this branch on a GitHub runner: the release APK carries
+# the whole bundled Linux runtime, so the runtime is built here first
+# (runtime/build-runtime.sh), then tooling/build-apk.sh packages it.
 name: build-apk
 
 on:
@@ -12,12 +13,13 @@ permissions:
 
 env:
   FLUTTER_VERSION: 3.47.7
+  NODE_VERSION: 24.22.1
   TZ: Asia/Shanghai
 
 jobs:
   apk:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +30,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - uses: subosito/flutter-action@v2
         with:
@@ -41,6 +47,14 @@ jobs:
           # The lockfile was written against the China mirror; ask pub.dev from here.
           sed -i 's#https://pub.flutter-io.cn#https://pub.dev#g' pubspec.lock
           flutter pub get
+
+      - name: build deps
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install xz-utils zstd autoconf automake libtool pkg-config bzip2
+
+      - name: bundled runtime for arm64-v8a
+        run: bash runtime/build-runtime.sh arm64-v8a
 
       - name: flutter build apk (release, arm64, no companion pack, no star prompt)
         run: bash tooling/build-apk.sh -f arm64 --no-companion --no-star
