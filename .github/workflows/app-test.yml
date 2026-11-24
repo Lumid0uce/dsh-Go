@@ -1,0 +1,47 @@
+# Runs the app test suite on a full checkout: the local Windows tree is a sparse
+# checkout without assets/, so `flutter test` cannot bundle assets there.
+name: app-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+  TZ: Asia/Shanghai
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: pub get
+        working-directory: app
+        run: |
+          sed -i 's#https://pub.flutter-io.cn#https://pub.dev#g' pubspec.lock
+          flutter pub get
+
+      - name: flutter test
+        working-directory: app
+        run: flutter test --reporter compact 2>&1 | tee /tmp/app_test.log
+
+      - name: tail on failure
+        if: failure()
+        run: tail -200 /tmp/app_test.log || true
