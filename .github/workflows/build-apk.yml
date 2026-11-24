@@ -1,0 +1,59 @@
+# Builds the arm64 APK of this branch on a GitHub runner (the machine has no
+# Android SDK, and a release APK carries the whole runtime bundle).
+name: build-apk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/phone-agent-claude-codex]
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+  TZ: Asia/Shanghai
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: pub get
+        working-directory: app
+        run: |
+          # The lockfile was written against the China mirror; ask pub.dev from here.
+          sed -i 's#https://pub.flutter-io.cn#https://pub.dev#g' pubspec.lock
+          flutter pub get
+
+      - name: flutter build apk (release, arm64, no companion pack, no star prompt)
+        run: bash tooling/build-apk.sh -f arm64 --no-companion --no-star
+
+      - name: what got built
+        if: always()
+        run: |
+          ls -lh app/build/app/outputs/flutter-apk/ || true
+          sha256sum app/build/app/outputs/flutter-apk/*.apk || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-arm64
+          path: app/build/app/outputs/flutter-apk/*.apk
+          retention-days: 5
+          if-no-files-found: error
