@@ -60,6 +60,9 @@ jobs:
           yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
           "$sdk/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358"
           ls "$sdk/ndk"
+          # The runner images export ANDROID_NDK_HOME for an older NDK; the tawcroot
+          # launcher is pinned to this one, so point the build at it explicitly.
+          echo "ANDROID_NDK_HOME=$sdk/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: bundled runtime for arm64-v8a
         run: bash runtime/build-runtime.sh arm64-v8a
