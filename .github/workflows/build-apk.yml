@@ -53,6 +53,14 @@ jobs:
           sudo apt-get -y update
           sudo apt-get -y install xz-utils zstd autoconf automake libtool pkg-config bzip2
 
+      - name: Android NDK 28.2.13676358 (tawcroot launcher)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          yes | "$sdk/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$sdk/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358"
+          ls "$sdk/ndk"
+
       - name: bundled runtime for arm64-v8a
         run: bash runtime/build-runtime.sh arm64-v8a
 
