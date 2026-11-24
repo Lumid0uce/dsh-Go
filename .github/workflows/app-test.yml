@@ -4,6 +4,8 @@ name: app-test
 
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/phone-agent-claude-codex]
 
 permissions:
   contents: read
