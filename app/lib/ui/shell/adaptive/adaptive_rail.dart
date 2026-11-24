@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
-import '../../../state/connection_state.dart' show hostNameProvider;
+import '../../../state/connection_state.dart' show activeConnectionProvider, hostNameProvider;
 import '../../../state/hosts_state.dart' show activeHostProvider;
 import '../../chat/chat_header.dart';
 import '../../common/status_dot.dart';
@@ -109,13 +109,16 @@ class AdaptiveRail extends ConsumerWidget {
                     badge: StatusDot(tone: status.tone, size: 7),
                   ),
                   gap,
-                  GlassIconButton(
-                    key: const ValueKey('rail-web'),
-                    icon: AppIcons.webApp,
-                    tooltip: l10n.commonWeb,
-                    onPressed: onWeb,
-                  ),
-                  gap,
+                  // No 网页版 for an agent host (Claude/Codex).
+                  if (ref.watch(activeConnectionProvider).value?.isAgent != true) ...[
+                    GlassIconButton(
+                      key: const ValueKey('rail-web'),
+                      icon: AppIcons.webApp,
+                      tooltip: l10n.commonWeb,
+                      onPressed: onWeb,
+                    ),
+                    gap,
+                  ],
                   GlassIconButton(
                     key: const ValueKey('rail-settings'),
                     icon: AppIcons.settings,

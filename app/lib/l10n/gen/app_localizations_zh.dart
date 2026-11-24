@@ -28274,6 +28274,9 @@ class L10nZh extends L10n {
   String get webRelayUnavailable => '经 DSH Remote 中转时打不开网页版，请在那台电脑上打开';
 
   @override
+  String get webAgentNoWeb => '连接 Claude 或 Codex 时没有网页版';
+
+  @override
   String get webSshHost => 'SSH 主机';
 
   @override

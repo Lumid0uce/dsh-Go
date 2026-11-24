@@ -51624,6 +51624,12 @@ abstract class L10n {
   /// **'经 DSH Remote 中转时打不开网页版，请在那台电脑上打开'**
   String get webRelayUnavailable;
 
+  /// No description provided for @webAgentNoWeb.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接 Claude 或 Codex 时没有网页版'**
+  String get webAgentNoWeb;
+
   /// No description provided for @webSshHost.
   ///
   /// In zh, this message translates to:

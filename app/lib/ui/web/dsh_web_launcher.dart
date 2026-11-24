@@ -42,6 +42,9 @@ final class SshDshWeb extends DshWebAccess {
 /// Noise session ([RemoteWebPage]; Android and iPhone, the Host's Remote
 /// plugin 0.6.6 or later with DSH Web running). It lands on the home page:
 /// the page gets no JavaScript bridge, so no [DshWebTarget].
+///
+/// Never reached for an agent host: [dshWebAccessProvider] answers
+/// [NoDshWeb] first.
 final class RelayDshWeb extends DshWebAccess {
   const RelayDshWeb(this.carrier, this.session);
   final RemoteTunnelCarrier carrier;
@@ -57,6 +60,8 @@ final class NoDshWeb extends DshWebAccess {
 /// The active host's DSH Web, if it has one the app can reach.
 final dshWebAccessProvider = Provider.autoDispose<DshWebAccess>((ref) {
   final host = ref.watch(activeHostProvider);
+  // An agent host (Claude/Codex) has no DSH Web.
+  if (ref.watch(activeConnectionProvider).value?.isAgent == true) return NoDshWeb(appL10n.webAgentNoWeb);
   switch (host.kind) {
     case HostKind.local:
       return const LocalDshWeb();

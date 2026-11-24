@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/models_state.dart';
 import '../../state/settings_state.dart';
 import '../common/app_sheet.dart';
@@ -569,7 +570,11 @@ class _ModelSheetState extends ConsumerState<_ModelSheet> {
                 ),
               ),
             // 「管理模型 ›」: 设置 › 模型, over the sheet (back returns here).
-            if (picking) ...[const SizedBox(height: 12), const ManageModelsLink()],
+            // An agent host (Claude/Codex) has no provider catalog of ours.
+            if (picking && ref.watch(activeConnectionProvider).value?.isAgent != true) ...[
+              const SizedBox(height: 12),
+              const ManageModelsLink(),
+            ],
           ],
         ),
       ),

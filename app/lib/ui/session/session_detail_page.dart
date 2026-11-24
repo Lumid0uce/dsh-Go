@@ -14,6 +14,7 @@ import '../../state/adaptive_layout_state.dart';
 import '../../state/agents_state.dart';
 import '../../state/app_notes.dart';
 import '../../state/chat_state.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/session_detail_state.dart';
 import '../../state/usage_state.dart';
 import '../agents/agent_widgets.dart';
@@ -146,6 +147,10 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
   /// Last measured hero height (after layout; never read during build).
   double _heroHeight = 120;
 
+  /// An agent host (Claude/Codex) has no DSH terminal behind it. Set in
+  /// [build], where the connection is watched.
+  bool _agentHost = false;
+
   SessionDetailMode get _mode => widget.mode;
 
   @override
@@ -211,7 +216,8 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
 
   void _openTerminal() => Navigator.of(context).push(TerminalPage.route(widget.sessionId));
 
-  /// The page's bar: ‹ back, the title once the hero is gone, the terminal.
+  /// The page's bar: ‹ back, the title once the hero is gone, the terminal
+  /// (its width kept on an agent host: the title stays centred).
   Widget _pageBar(BuildContext context, String title) => SizedBox(
     height: _pageBarHeight,
     child: BackdropGroup(
@@ -247,7 +253,10 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
             ),
             const SizedBox(width: 8),
             // Mirrors the back button: the title stays centred.
-            GlassIconButton(icon: AppIcons.terminal, tooltip: context.l10n.hubTerminal, onPressed: _openTerminal),
+            if (_agentHost)
+              const SizedBox(width: 44)
+            else
+              GlassIconButton(icon: AppIcons.terminal, tooltip: context.l10n.hubTerminal, onPressed: _openTerminal),
           ],
         ),
       ),
@@ -278,8 +287,10 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
               ),
             ),
             const SizedBox(width: 8),
-            GlassIconButton(icon: AppIcons.terminal, tooltip: context.l10n.hubTerminal, onPressed: _openTerminal),
-            const SizedBox(width: 8),
+            if (!_agentHost) ...[
+              GlassIconButton(icon: AppIcons.terminal, tooltip: context.l10n.hubTerminal, onPressed: _openTerminal),
+              const SizedBox(width: 8),
+            ],
             const DetailPanelCollapseKey(),
           ],
         ),
@@ -290,6 +301,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    _agentHost = ref.watch(activeConnectionProvider).value?.isAgent == true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _measureHero();
     });
@@ -443,7 +455,7 @@ class _SessionDetailPageState extends ConsumerState<SessionDetailPage> with Tick
         final drag = DetailSheetScope.maybeOf(context)?.dragArea;
         final titleBar = SheetTitleBar(
           l10n.hubSessionDetails,
-          actions: [SheetIconButton(icon: AppIcons.terminal, tooltip: l10n.hubTerminal, onPressed: _openTerminal)],
+          actions: [if (!_agentHost) SheetIconButton(icon: AppIcons.terminal, tooltip: l10n.hubTerminal, onPressed: _openTerminal)],
         );
         return Column(
           children: [

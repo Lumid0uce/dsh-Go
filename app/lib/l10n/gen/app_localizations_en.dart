@@ -29838,6 +29838,9 @@ class L10nEn extends L10n {
   String get webRelayUnavailable => 'DSH Web isn’t available through DSH Remote. Open it on that computer.';
 
   @override
+  String get webAgentNoWeb => 'DSH Web isn’t available while a Claude or Codex agent is the active host';
+
+  @override
   String get webSshHost => 'SSH host';
 
   @override

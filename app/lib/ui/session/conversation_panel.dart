@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/quick_panel_state.dart';
 import '../common/segmented_pill.dart';
 import '../shell/drawer/drawer_destination.dart';
@@ -49,7 +50,21 @@ class ConversationPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final section = ref.watch(conversationPaneProvider);
+    // The footer shortcuts stay the user's pick, minus what an agent host
+    // (Claude/Codex) cannot open.
+    final isAgent = ref.watch(activeConnectionProvider).value?.isAgent == true;
     final destinations = ref.watch(quickPanelProvider.select((p) => p.items));
+    final shortcuts =
+        isAgent
+            ? destinations
+                  .where(
+                    (d) =>
+                        d != DrawerDestination.plugins &&
+                        d != DrawerDestination.engine &&
+                        d != DrawerDestination.web,
+                  )
+                  .toList()
+            : destinations;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -88,14 +103,14 @@ class ConversationPanel extends ConsumerWidget {
             ),
           ),
         ),
-        if (destinations.isNotEmpty)
+        if (shortcuts.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
             // Every shortcut ticked on a narrow phone doesn't fit on one line.
             child: Wrap(
               alignment: WrapAlignment.spaceEvenly,
               children: [
-                for (final destination in destinations)
+                for (final destination in shortcuts)
                   _Key(
                     key: ValueKey('quick-panel-${destination.name}'),
                     icon: destination.icon,

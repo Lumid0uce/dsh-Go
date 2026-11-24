@@ -33,6 +33,12 @@ export 'src/account/remote_account.dart'
         RemotePairing,
         RemoteUser;
 export 'src/account/secret_store.dart';
+export 'src/agents/acp_carrier.dart' show AcpClaudeCarrier;
+export 'src/agents/acp_client.dart';
+export 'src/agents/codex_carrier.dart' show CodexCarrier;
+export 'src/agents/codex_client.dart';
+export 'src/agents/virtual_link.dart' show VirtualAgentCarrier, VirtualFailure;
+export 'src/agents/workspace_types.dart';
 export 'src/carrier/tunnel_carrier.dart';
 export 'src/channel/rpc_client.dart';
 export 'src/dsh_web.dart';

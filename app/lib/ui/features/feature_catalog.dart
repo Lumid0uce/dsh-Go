@@ -14,6 +14,7 @@ import '../../plugins/native/native_icons.dart';
 import '../../plugins/native/native_state.dart';
 import '../../plugins/seams/seams.dart';
 import '../../state/android_features.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/plugins_state.dart';
 import '../common/feature_tile.dart';
 import '../agents/team_page.dart';
@@ -451,7 +452,23 @@ String get pluginFeatureSection => appL10n.catalogPlugins;
 /// 全部功能's sections, with an entry per plugin panel the host has (`main`)
 /// at the end of 插件. Exactly [featureSections] without one (on Android).
 final featureSectionsProvider = Provider.autoDispose<List<FeatureSection>>((ref) {
-  final sections = ref.watch(androidSystemFeaturesProvider) ? featureSections : _sectionsWithoutAndroid;
+  var sections = ref.watch(androidSystemFeaturesProvider) ? featureSections : _sectionsWithoutAndroid;
+  // An agent host (Claude/Codex) has no DSH Web, plugins, terminal or
+  // provider catalog behind it.
+  if (ref.watch(activeConnectionProvider).value?.isAgent == true) {
+    sections = [
+      for (final section in sections)
+        if (section.items.any((item) => _agentHiddenFeatures.contains(item.id)))
+          FeatureSection.localized(
+            section.titleIn,
+            [for (final item in section.items) if (!_agentHiddenFeatures.contains(item.id)) item],
+            note: section.note,
+            id: section.id,
+          )
+        else
+          section,
+    ];
+  }
   final plan = ref.watch(seatPlanProvider(const SeatRequest(slot: Slots.main, placement: SeatPlacement.page)));
   final items = plan.visible;
   if (items.isEmpty) return sections;
@@ -469,16 +486,20 @@ final featureSectionsProvider = Provider.autoDispose<List<FeatureSection>>((ref)
   ];
   return [
     for (final section in sections)
-      section.items.any((item) => item.id == 'plugins')
-          ? FeatureSection.localized(
+      !section.items.any((item) => item.id == 'plugins')
+          ? section
+          : FeatureSection.localized(
               (l10n) => l10n.catalogPlugins,
               [...section.items, ...panels],
               note: section.note,
               id: section.id,
-            )
-          : section,
+            ),
   ];
 });
+
+/// What an agent host (Claude/Codex) cannot serve: the DSH Web entry, DSH's
+/// plugins and their panels, the DSH terminal, and 设置 › 模型.
+const _agentHiddenFeatures = {'web', 'plugins', 'terminal', 'models'};
 
 /// One plugin panel as an entry: its native or island page, or DSH Web (the
 /// card then says 「网页版」) when neither can come up. [owner] is the

@@ -2,6 +2,15 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:dsh_client/dsh_client.dart';
+import 'package:dsh_remote/dsh_remote.dart'
+    show
+        AcpClaudeCarrier,
+        CodexCarrier,
+        HostBackend,
+        HostBackendAvailability,
+        RemoteHostSession,
+        RemoteTunnelCarrier,
+        parseRemoteWorkspaceTypes;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
@@ -31,9 +40,17 @@ class HostConnection {
     this.hostId,
     this.name,
     this.workingDirectory,
+    this.backend = HostBackend.dsh,
   });
 
   final DshClient client;
+
+  /// The agent behind [client]: DSH, or Claude / Codex projected onto the
+  /// DSH API by a virtual carrier on a relay computer.
+  final HostBackend backend;
+
+  /// Claude / Codex: no DSH-only features (providers, plugins, terminal, DSH Web).
+  bool get isAgent => backend != HostBackend.dsh;
 
   /// A fixed label (tests); null builds it from [kind] and [name].
   final String? _label;
@@ -43,7 +60,7 @@ class HostConnection {
 
   /// Shown in the chat header: "本机", "电脑 · SSH", "家里的 Mac · 远程".
   /// Built on read, so it follows a language switch on a live connection.
-  String get label => _label ?? hostLabel(kind, name);
+  String get label => _label ?? (isAgent ? '${hostLabel(kind, name)} · ${backend.label}' : hostLabel(kind, name));
   final bool isLocal;
   final HostKind kind;
   final String? hostId;
@@ -600,6 +617,78 @@ AsyncValue<HostConnection?> _connectionForHost(Ref ref, HostRef host) {
       if (!loaded) return const AsyncLoading();
       return ref.watch(remoteConnectionProvider(host));
     case HostKind.relay:
-      return ref.watch(remoteConnectionProvider(host));
+      final backend = ref.watch(hostBackendProvider(host));
+      if (backend == HostBackend.dsh) return ref.watch(remoteConnectionProvider(host));
+      return ref.watch(agentConnectionProvider((host: host, backend: backend)));
   }
 }
+
+// ── Claude / Codex on a relay computer ───────────────────────────────────────
+
+/// The DSH tunnel of [host]'s live connection, if it is one.
+RemoteTunnelCarrier? _tunnelOf(HostConnection? connection) {
+  final carrier = connection?.client.carrier;
+  return carrier is RemoteTunnelCarrier ? carrier : null;
+}
+
+/// Which agents the relay computer offers, from its latest
+/// `harness.transport.describe`. [HostBackendAvailability.unknown] (DSH only)
+/// until connected; SSH hosts and 本机 are DSH only.
+final hostBackendAvailabilityProvider = StreamProvider.autoDispose.family<HostBackendAvailability, HostRef>((
+  ref,
+  host,
+) {
+  if (host.kind != HostKind.relay) return Stream.value(HostBackendAvailability.unknown);
+  final connection = ref.watch(remoteConnectionProvider(host)).value;
+  final tunnel = _tunnelOf(connection);
+  if (tunnel == null) return Stream.value(HostBackendAvailability.unknown);
+  HostBackendAvailability of(RemoteHostSession? session) {
+    if (session == null) {
+      final caps = tunnel.capabilities;
+      return caps.isEmpty ? HostBackendAvailability.unknown : HostBackendAvailability.of(caps, null);
+    }
+    return HostBackendAvailability.of(
+      session.capabilities,
+      parseRemoteWorkspaceTypes(session.workspaceTypes, present: session.workspaceTypes != null),
+    );
+  }
+
+  return Stream.multi((output) {
+    output.addSync(of(tunnel.session));
+    final sub = tunnel.sessions.listen((session) => output.addSync(of(session)));
+    output.onCancel = sub.cancel;
+  });
+});
+
+typedef AgentHostKey = ({HostRef host, HostBackend backend});
+
+/// Claude or Codex on a relay computer, carried by the same encrypted tunnel
+/// as the computer's DSH connection (which stays up underneath).
+final agentConnectionProvider = Provider.autoDispose.family<AsyncValue<HostConnection?>, AgentHostKey>((ref, key) {
+  final dsh = ref.watch(remoteConnectionProvider(key.host));
+  final base = dsh.value;
+  final tunnel = _tunnelOf(base);
+  if (tunnel == null) {
+    if (dsh.hasError) return AsyncError(dsh.error!, dsh.stackTrace ?? StackTrace.current);
+    return dsh.isLoading ? const AsyncLoading() : const AsyncData(null);
+  }
+  final DshCarrier carrier = switch (key.backend) {
+    HostBackend.claude => AcpClaudeCarrier(tunnel.ensureSession),
+    HostBackend.codex => CodexCarrier(tunnel.ensureSession),
+    HostBackend.dsh => tunnel,
+  };
+  if (identical(carrier, tunnel)) return dsh;
+  final client = DshClient.withCarrier(carrier);
+  // Closing the agent client closes only its virtual carrier, never the tunnel.
+  ref.onDispose(() => unawaited(client.close()));
+  return AsyncData(
+    HostConnection(
+      client: client,
+      name: base!.name,
+      isLocal: false,
+      kind: HostKind.relay,
+      hostId: key.host.id,
+      backend: key.backend,
+    ),
+  );
+});

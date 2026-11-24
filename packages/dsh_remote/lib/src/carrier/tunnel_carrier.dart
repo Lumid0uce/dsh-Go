@@ -344,6 +344,10 @@ class RemoteTunnelCarrier extends DshCarrier implements WorkspaceUploadCarrier {
   // ---------------------------------------------------------------------------
   // Session management
 
+  /// The live Host connection, opening one when needed. Agent carriers
+  /// (Claude / Codex) share this tunnel's connection through it.
+  Future<RemoteHostSession> ensureSession() => _ensureSession();
+
   Future<RemoteHostSession> _ensureSession() {
     if (_closed) return Future.error(const DshClosedException('remote carrier closed'));
     final current = _session;

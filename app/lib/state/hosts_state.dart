@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:dsh_remote/dsh_remote.dart' show HostBackend;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -377,6 +378,61 @@ class ActiveHostController extends Notifier<HostRef> {
 }
 
 final activeHostProvider = NotifierProvider<ActiveHostController, HostRef>(ActiveHostController.new);
+
+/// Which agent (DSH / Claude / Codex) each relay computer runs, by host id.
+/// Persisted; a host never chosen for runs DSH. SSH hosts and 本机 are DSH only.
+class HostBackendController extends Notifier<Map<String, HostBackend>> {
+  static const prefsKey = 'remote_host_backends';
+  bool _touched = false;
+
+  @override
+  Map<String, HostBackend> build() {
+    unawaited(_restore());
+    return const {};
+  }
+
+  Future<void> _restore() async {
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(prefsKey);
+      if (_touched || raw == null || raw.isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      state = {
+        for (final entry in decoded.entries)
+          if (entry.key is String && entry.value is String) entry.key as String: HostBackend.fromId(entry.value as String),
+      };
+    } catch (_) {
+      // No preferences backend (tests) or a damaged value: every host runs DSH.
+    }
+  }
+
+  HostBackend of(HostRef host) => host.kind == HostKind.relay ? (state[host.id] ?? HostBackend.dsh) : HostBackend.dsh;
+
+  /// Makes [host] run [backend] (activating the host is the caller's job,
+  /// through its trust checks). When [host] is in use, the open conversation
+  /// belongs to the old agent, so the chat goes back to "新对话".
+  void select(HostRef host, HostBackend backend) {
+    _touched = true;
+    if (host.kind != HostKind.relay || of(host) == backend) return;
+    state = {...state, host.id: backend};
+    if (ref.read(activeHostProvider) == host) ref.read(currentSessionProvider.notifier).select(null);
+    unawaited(
+      SharedPreferences.getInstance()
+          .then((prefs) => prefs.setString(prefsKey, jsonEncode({for (final e in state.entries) e.key: e.value.id})))
+          .catchError((_) => false),
+    );
+  }
+}
+
+final hostBackendsProvider = NotifierProvider<HostBackendController, Map<String, HostBackend>>(
+  HostBackendController.new,
+);
+
+/// The agent of [host] ([HostBackend.dsh] for 本机 and SSH hosts).
+final hostBackendProvider = Provider.family<HostBackend, HostRef>((ref, host) {
+  if (host.kind != HostKind.relay) return HostBackend.dsh;
+  return ref.watch(hostBackendsProvider.select((m) => m[host.id] ?? HostBackend.dsh));
+});
 
 // ── DSH Remote (relay) account ───────────────────────────────────────────────
 

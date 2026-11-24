@@ -16,6 +16,7 @@ import '../../pets/overlay_channel.dart' show petOverlayChannelProvider;
 import '../../pets/pet_overlay_bridge.dart';
 import '../../state/adaptive_layout_state.dart';
 import '../../state/android_features.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/drawer_view_state.dart' show drawerSelectionProvider;
 import '../../state/quick_panel_state.dart';
 import '../../state/sessions_state.dart' show currentSessionProvider;
@@ -233,6 +234,18 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
   }
 
   void _openDestination(DrawerDestination destination) {
+    // An agent host (Claude/Codex) has no DSH Web, plugins or engine page.
+    if (ref.read(activeConnectionProvider).value?.isAgent == true) {
+      if (destination == DrawerDestination.web ||
+          destination == DrawerDestination.plugins ||
+          destination == DrawerDestination.engine) {
+        // Nothing to open; close the drawer/panel so the tap still does
+        // something instead of leaving it stuck open.
+        _closeDrawer();
+        _closeQuickPanel();
+        return;
+      }
+    }
     final page = switch (destination) {
       // The active host's DSH Web, as every other 网页版 entry opens it.
       DrawerDestination.web => null,

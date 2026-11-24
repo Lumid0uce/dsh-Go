@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../state/connection_state.dart' show activeConnectionProvider;
 import '../../state/quick_panel_state.dart';
 import '../session/conversation_panel.dart';
 import '../theme/app_icons.dart';
@@ -64,6 +65,18 @@ class QuickPanel extends ConsumerWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final items = ref.watch(quickPanelProvider.select((p) => p.items));
+    // An agent host (Claude/Codex) has no plugins, engine page or web entry.
+    final isAgent = ref.watch(activeConnectionProvider).value?.isAgent == true;
+    final shown = isAgent
+        ? items
+              .where(
+                (d) =>
+                    d != DrawerDestination.plugins &&
+                    d != DrawerDestination.engine &&
+                    d != DrawerDestination.web,
+              )
+              .toList()
+        : items;
     final content = Material(
       type: MaterialType.transparency,
       child: SafeArea(
@@ -89,7 +102,7 @@ class QuickPanel extends ConsumerWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   children: [
-                    for (final destination in items) _Row(destination: destination, onTap: () => onOpen(destination)),
+                    for (final destination in shown) _Row(destination: destination, onTap: () => onOpen(destination)),
                   ],
                 ),
               ),
