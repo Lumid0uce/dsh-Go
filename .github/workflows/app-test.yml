@@ -1,5 +1,7 @@
 # Runs the app test suite on a full checkout: the local Windows tree is a sparse
 # checkout without assets/, so `flutter test` cannot bundle assets there.
+# The suite needs the CJK test fonts (via DSH_TEST_FONT_DIR) and fish/zsh for the
+# ssh completion tests, exactly like upstream ci.yml.
 name: app-test
 
 on:
@@ -13,11 +15,12 @@ permissions:
 env:
   FLUTTER_VERSION: 3.47.7
   TZ: Asia/Shanghai
+  DSH_TEST_FONT_DIR: /usr/share/fonts/opentype/noto
 
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +37,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: test deps (fonts, fish, zsh)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji fish zsh
+          ls "$DSH_TEST_FONT_DIR" | head
+
       - name: pub get
         working-directory: app
         run: |
@@ -42,8 +51,10 @@ jobs:
 
       - name: flutter test
         working-directory: app
-        run: flutter test --reporter compact 2>&1 | tee /tmp/app_test.log
+        run: |
+          set -o pipefail
+          flutter test --no-pub --concurrency=4 --reporter compact 2>&1 | tee /tmp/app_test.log
 
       - name: tail on failure
         if: failure()
-        run: tail -200 /tmp/app_test.log || true
+        run: grep -E "Failed to load|\[E\]|Some tests failed|Error:" /tmp/app_test.log | head -120 || true
