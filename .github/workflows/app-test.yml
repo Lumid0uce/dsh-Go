@@ -40,7 +40,13 @@ jobs:
       - name: test deps (fonts, fish, zsh)
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji fish zsh
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-cjk-extra fonts-noto-color-emoji fish zsh
+          # test/support/test_fonts.dart wants Regular/Bold/Light here ...
+          test -f "$DSH_TEST_FONT_DIR/NotoSansCJK-Regular.ttc"
+          test -f "$DSH_TEST_FONT_DIR/NotoSansCJK-Bold.ttc"
+          test -f "$DSH_TEST_FONT_DIR/NotoSansCJK-Light.ttc"
+          # ... and test/drawer/support.dart hard-codes the emoji font here.
+          sudo install -Dm644 /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf /usr/share/fonts/noto/NotoColorEmoji.ttf
           ls "$DSH_TEST_FONT_DIR" | head
 
       - name: pub get
